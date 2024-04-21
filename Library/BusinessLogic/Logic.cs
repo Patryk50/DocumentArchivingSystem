@@ -1,8 +1,16 @@
-﻿namespace DocumentArchivingSystem
+﻿using Library.Data;
+using System.Xml.Linq;
+
+namespace DocumentArchivingSystem
 {
     public class Logic
     {
-        static List<Document> documents = new();
+        private readonly DASDbContext _db;
+
+        public Logic(DASDbContext db)
+        {
+            _db = db;
+        }
 
         public static void Error(string message)
         {
@@ -20,60 +28,63 @@
             Console.ResetColor();
         }
 
-
         public static void Menu()
         {
-            Console.Clear();
-
-            Console.WriteLine("Menu: \n");
-
-            Console.WriteLine("[1] Dodaj dokument");
-            Console.WriteLine("[2] Usuń dokument");
-            Console.WriteLine("[3] Znajdź dokumenty");
-            Console.WriteLine("[4] Modyfikuj dokument");
-            Console.WriteLine("[5] Zakończ\n");
-
-            Console.Write("Wybór: ");
-
-            switch (Console.ReadLine())
+            using (var db = new DASDbContext())
             {
-                case "1":
-                    AddDocument();
-                    Menu();
-                    break;
-                case "2":
-                    RemoveDocument();
-                    Menu();
-                    break;
-                case "3":
-                    SearchDocuments();
-                    Menu();
-                    break;
-                case "4":
-                    ModifyDocument();
-                    Menu();
-                    break;
-                case "5":
-                    Environment.Exit(0);
-                    break;
-                default:
-                    Error("Wprowadzono błędną wartość");
-                    Menu();
-                    break;
+                db.Database.EnsureCreated();
+
+                var logic = new Logic(db);
+
+                Console.Clear();
+
+                Console.WriteLine("Menu: \n");
+
+                Console.WriteLine("[1] Dodaj dokument");
+                Console.WriteLine("[2] Usuń dokument");
+                Console.WriteLine("[3] Znajdź dokumenty");
+                Console.WriteLine("[4] Modyfikuj dokument");
+                Console.WriteLine("[5] Zakończ\n");
+
+                Console.Write("Wybór: ");
+
+                switch (Console.ReadLine())
+                {
+                    case "1":
+                        logic.AddDocument();
+                        Menu();
+                        break;
+                    case "2":
+                        logic.RemoveDocument();
+                        Menu();
+                        break;
+                    case "3":
+                        logic.SearchDocuments();
+                        Menu();
+                        break;
+                    case "4":
+                        logic.ModifyDocument();
+                        Menu();
+                        break;
+                    case "5":
+                        Environment.Exit(0);
+                        break;
+                    default:
+                        Error("Wprowadzono błędną wartość");
+                        Menu();
+                        break; 
+                }
             }
         }
 
-        public static void AddDocument()
+        public void AddDocument()
         {
             Console.Clear();
 
             Guid uuid = Guid.NewGuid();
 
-            int id = documents.Count + 1;
-
             try
             {
-
                 Console.Write("Podaj tytuł: ");
                 string title = Console.ReadLine();
 
@@ -89,9 +100,19 @@
                 Console.Write("Liczba egzemplarzy: ");
                 int numOfCopies = int.Parse(Console.ReadLine());
 
-                Document document = new(id, uuid, title, year, category, localization, numOfCopies);
+                Document document = new Document
+                {
+                    UUID = uuid,
+                    Title = title,
+                    Year = year,
+                    Category = category,
+                    Location = localization,
+                    NumOfCopies = numOfCopies
+                };
 
-                documents.Add(document);
+                _db.Documents.Add(document);
+                _db.SaveChanges();
+                Success("Dokument został dodany");
             }
             catch (Exception)
             {
@@ -99,24 +120,25 @@
             }
         }
 
-        public static void RemoveDocument()
+        public void RemoveDocument()
         {
             Console.Clear();
 
-            Console.Write("Podaj nazwę: ");
-            string userChoice = Console.ReadLine();
-
-            var documentToRemove = documents.Find(d => d.Title == userChoice);
-
-            if (documents.Count == 0)
+            if (_db.Documents.Count() == 0)
             {
                 Console.WriteLine("Brak dokumentacji do usunięcia");
             }
             else
             {
+                Console.Write("Podaj nazwę: ");
+                string userChoice = Console.ReadLine();
+
+                var documentToRemove = _db.Documents.FirstOrDefault(doc => doc.Title == userChoice);
+
                 if (documentToRemove != null)
                 {
-                    documents.Remove(documentToRemove);
+                    _db.Documents.Remove(documentToRemove);
+                    _db.SaveChanges();
                     Success("Dokument został usunięty");
                 }
                 else
@@ -128,14 +150,14 @@
             Console.ReadKey();
         }
 
-        private static void ShowAllDocuments()
+        private void ShowAllDocuments()
         {
             Console.Clear();
 
-            Console.WriteLine($"Ilość dokumentów: {documents.Count}\n");
+            Console.WriteLine($"Ilość dokumentów: {_db.Documents.Count()}\n");
 
             int counter = 0;
-            foreach (Document document in documents)
+            foreach (Document document in _db.Documents)
             {
                 Console.WriteLine($"[{++counter}] | UUID: {document.UUID} |  Tytuł: {document.Title} | Rok: {document.Year} | Kategoria: {document.Category} | Lokalizacja: {document.Location} | Liczba egz.: {document.NumOfCopies}");
             }
@@ -143,12 +165,12 @@
             Console.ReadKey();
         }
 
-        private static void DisplayFilteredDocuments(Func<Document, bool> filter)
+        private void DisplayFilteredDocuments(Func<Document, bool> filter)
         {
             Console.Clear();
 
             int counter = 0;
-            var filteredDocuments = documents.Where(filter);
+            var filteredDocuments = _db.Documents.Where(filter);
 
             if (filteredDocuments.Any())
             {
@@ -164,11 +186,11 @@
             Console.ReadKey();
         }
 
-        public static void SearchDocuments()
+        public void SearchDocuments()
         {
             Console.Clear();
 
-            if (documents.Count == 0)
+            if (_db.Documents.Count() == 0)
             {
                 Console.WriteLine("Brak dokumentacji do wyszukania");
                 Console.ReadKey();
@@ -213,11 +235,13 @@
             }
         }
 
-        public static void ModifyDocument()
+        public void ModifyDocument()
         {
             Console.Clear();
 
-            if (documents.Count == 0)
+            var documents = _db.Documents.ToList();
+
+            if (_db.Documents.Count() == 0)
             {
                 Console.WriteLine("Brak dokumentacji do modyfikacji");
                 Console.ReadKey();
@@ -230,6 +254,7 @@
                 int counter = 0;
 
                 var documentToModify = documents.FindAll(d => d.Title == userChoice);
+
 
                 if (documentToModify.Count == 0)
                 {
@@ -257,24 +282,28 @@
                                 Console.Write("Nowa nazwa: ");
                                 document.Title = Console.ReadLine();
                                 Success("Zmiana zaszła pomyślnie");
+                                _db.SaveChanges();
                                 Console.ReadKey();
                                 return;
                             case "2":
                                 Console.Write("Nowy rok: ");
                                 document.Year = Console.ReadLine();
                                 Success("Zmiana zaszła pomyślnie");
+                                _db.SaveChanges();
                                 Console.ReadKey();
                                 return;
                             case "3":
                                 Console.Write("Nowa kategoria: ");
                                 document.Category = Console.ReadLine();
                                 Success("Zmiana zaszła pomyślnie");
+                                _db.SaveChanges();
                                 Console.ReadKey();
                                 return;
                             case "4":
                                 Console.Write("Nowa lokalizacja: ");
                                 document.Location = Console.ReadLine();
                                 Success("Zmiana zaszła pomyślnie");
+                                _db.SaveChanges();
                                 Console.ReadKey();
                                 return;
                             case "5":
@@ -288,6 +317,7 @@
                                 {
                                     document.NumOfCopies = newNumOfCopies;
                                     Success("Zmiana zaszła pomyślnie");
+                                    _db.SaveChanges();
                                     Console.ReadKey();
                                 }
                                 return;

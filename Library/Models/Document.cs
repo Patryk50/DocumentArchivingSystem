@@ -9,21 +9,5 @@
         public string Category { get; set; }
         public string Location { get; set; }
         public int NumOfCopies { get; set; }
-
-        public Document()
-        {
-            
-        }
-
-        internal Document(int id, Guid uuid, string title, string year, string category, string location, int numOfCopies)
-        {
-            Id = id;
-            UUID = uuid;
-            Title = title;
-            Year = year;
-            Category = category;
-            Location = location;
-            NumOfCopies = numOfCopies;
-        }
     }
 }
